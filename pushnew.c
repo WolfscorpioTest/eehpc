@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
 #include "app.h"
 
 #include "commander.h"
@@ -43,6 +44,8 @@
 #include "param.h"
 
 #define DEBUG_MODULE "PUSH"
+
+//function adding together various positioning data of drone to determine
 
 static void setHoverSetpoint(setpoint_t *setpoint, float vx, float vy, float z, float yawrate)
 {
@@ -62,6 +65,7 @@ static void setHoverSetpoint(setpoint_t *setpoint, float vx, float vy, float z, 
   setpoint->velocity_body = true;
 }
 
+// fsm states
 typedef enum {
     idle,
     lowUnlock,
@@ -69,12 +73,16 @@ typedef enum {
     stopping
 } State;
 
+
+// default state is unlocked
 static State state = unlocked;
 
+//int values for various states (idle is 0 so isn't here)
 static const uint16_t unlockThLow = 100;
 static const uint16_t unlockThHigh = 300;
 static const uint16_t stoppedTh = 500;
 
+//default constant values for calculations
 static const float velMax = 1.0f;
 static const uint16_t radius = 300;
 static const uint16_t radius_up_down = 100;
@@ -82,25 +90,30 @@ static const float up_down_delta = 0.002f;
 
 static float height_sp = 0.2f;
 
+// "functions for min max"
 #define MAX(a,b) ((a>b)?a:b)
 #define MIN(a,b) ((a<b)?a:b)
 
+
+// appMain is run by kbuild by default
 void appMain()
 {
   static setpoint_t setpoint;
 
   vTaskDelay(M2T(3000));
 
+    //logging from multiranger?
   logVarId_t idUp = logGetVarId("range", "up");
   logVarId_t idLeft = logGetVarId("range", "left");
   logVarId_t idRight = logGetVarId("range", "right");
   logVarId_t idFront = logGetVarId("range", "front");
   logVarId_t idBack = logGetVarId("range", "back");
   
+  // selecting flow and multiranger decks
   paramVarId_t idPositioningDeck = paramGetVarId("deck", "bcFlow2");
   paramVarId_t idMultiranger = paramGetVarId("deck", "bcMultiranger");
 
-
+    //default const
   float factor = velMax/radius;
 
   //DEBUG_PRINT("%i", idUp);
@@ -111,41 +124,49 @@ void appMain()
     vTaskDelay(M2T(10));
     //DEBUG_PRINT(".");
 
+    // just getting values
 
-    //check if decks are properly mounted
+    //understand direction of movement
     uint8_t positioningInit = paramGetUint(idPositioningDeck);
+
+    //understand positioning of objects around
     uint8_t multirangerInit = paramGetUint(idMultiranger);
 
-
-    //upper range sensor value for startup and stopping
     uint16_t up = logGetUint(idUp);
 
     if (state == unlocked) {
-    
-    
-    
-    
+
+        //finding distances of something close
       uint16_t left = logGetUint(idLeft);
       uint16_t right = logGetUint(idRight);
       uint16_t front = logGetUint(idFront);
       uint16_t back = logGetUint(idBack);
 
+        // if left is right there (we detect it very close, then left_o is radius) 
+        // if left is very far (we detect it very far away, left_o = 0 and we will focus on the right)
       uint16_t left_o = radius - MIN(left, radius);
-      uint16_t right_o = radius - MIN(right, radius);
+      // vice versa
+      uint16_t right_o = radius - MIN(right, radius); 
+      // can keep these because our goal is just to keep moving forward anyways
+
+      //adding sign and "speed factor"
       float l_comp = (-1) * left_o * factor;
       float r_comp = right_o * factor;
+
+      //finding distances and adding together to see which direction to go into
       float velSide = r_comp + l_comp;
 
+
+        // can change this to be nothing because we want to be moving forward
       uint16_t front_o = radius - MIN(front, radius);
       uint16_t back_o = radius - MIN(back, radius);
       float f_comp = (-1) * front_o * factor;
       float b_comp = back_o * factor;
       float velFront = b_comp + f_comp;
 
+      //default vel (change with the inputs from nn)
+      velFront = 5;
 
-
-
-//height up and down
       // we want to go up when there are obstacles (hands) closer than radius_up_down on both sides
       if(left < radius_up_down && right < radius_up_down)
       {
@@ -167,15 +188,13 @@ void appMain()
       DEBUG_PRINT("u=%i, d=%i, height=%f\n", up_o, height);*/
 
       if (1) {
-        velFront = velSide;
-        velSide = velFront;
-        setHoverSetpoint(&setpoint, 1, 0, height, 0);
+        setHoverSetpoint(&setpoint, velFront, velSide, height, 0);
         commanderSetSetpoint(&setpoint, 3);
       }
 
       if (height < 0.1f) {
         state = stopping;
-        cout << "X\n";
+        DEBUG_PRINT("X\n");
       }
 
     } else {
@@ -183,16 +202,16 @@ void appMain()
       if (state == stopping && up > stoppedTh) {
         DEBUG_PRINT("%i", up);
         state = idle;
-        cout <<"S\n";
+        DEBUG_PRINT("S\n");
       }
-      
+
       if (up < unlockThLow && state == idle && up > 0.001f) {
-        cout <<"Waiting for hand to be removed!\n";
+        DEBUG_PRINT("Waiting for hand to be removed!\n");
         state = lowUnlock;
       }
 
       if (up > unlockThHigh && state == lowUnlock && positioningInit && multirangerInit) {
-        cout <<"Unlocked!\n";
+        DEBUG_PRINT("Unlocked!\n");
         state = unlocked;
       }
 
@@ -203,43 +222,3 @@ void appMain()
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
