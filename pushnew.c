@@ -166,6 +166,7 @@ void appMain()
 
       //default vel (change with the inputs from nn)
       velFront = 5;
+      // set conditional
 
       // we want to go up when there are obstacles (hands) closer than radius_up_down on both sides
       if(left < radius_up_down && right < radius_up_down)
