@@ -79,7 +79,7 @@ static const float velMax = 1.0f;
 static const uint16_t radius = 300;
 static const uint16_t radius_up_down = 100;
 static const float up_down_delta = 0.002f;
-
+uint16_t counter = 0;
 static float height_sp = 0.2f;
 
 #define MAX(a,b) ((a>b)?a:b)
@@ -111,20 +111,12 @@ void appMain()
     vTaskDelay(M2T(10));
     //DEBUG_PRINT(".");
 
-
-    //check if decks are properly mounted
     uint8_t positioningInit = paramGetUint(idPositioningDeck);
     uint8_t multirangerInit = paramGetUint(idMultiranger);
 
-
-    //upper range sensor value for startup and stopping
     uint16_t up = logGetUint(idUp);
 
     if (state == unlocked) {
-    
-    
-    
-    
       uint16_t left = logGetUint(idLeft);
       uint16_t right = logGetUint(idRight);
       uint16_t front = logGetUint(idFront);
@@ -142,10 +134,6 @@ void appMain()
       float b_comp = back_o * factor;
       float velFront = b_comp + f_comp;
 
-
-
-
-//height up and down
       // we want to go up when there are obstacles (hands) closer than radius_up_down on both sides
       if(left < radius_up_down && right < radius_up_down)
       {
@@ -160,39 +148,42 @@ void appMain()
 
       uint16_t up_o = radius - MIN(up, radius);
       float height = height_sp - up_o/1000.0f;
-
-
+      
+      if (counter<2){
+height = 0.5f;
+counter++;
+}
       /*DEBUG_PRINT("l=%i, r=%i, lo=%f, ro=%f, vel=%f\n", left_o, right_o, l_comp, r_comp, velSide);
       DEBUG_PRINT("f=%i, b=%i, fo=%f, bo=%f, vel=%f\n", front_o, back_o, f_comp, b_comp, velFront);
       DEBUG_PRINT("u=%i, d=%i, height=%f\n", up_o, height);*/
 
       if (1) {
-        velFront = velSide;
-        velSide = velFront;
-        setHoverSetpoint(&setpoint, 1, 0, height, 0);
+        setHoverSetpoint(&setpoint, velFront, velSide, height, 0);
         commanderSetSetpoint(&setpoint, 3);
       }
 
       if (height < 0.1f) {
         state = stopping;
-        cout << "X\n";
+        DEBUG_PRINT("X\n");
       }
 
     } else {
 
+
+
       if (state == stopping && up > stoppedTh) {
         DEBUG_PRINT("%i", up);
         state = idle;
-        cout <<"S\n";
+        DEBUG_PRINT("S\n");
       }
-      
+
       if (up < unlockThLow && state == idle && up > 0.001f) {
-        cout <<"Waiting for hand to be removed!\n";
+        DEBUG_PRINT("Waiting for hand to be removed!\n");
         state = lowUnlock;
       }
 
       if (up > unlockThHigh && state == lowUnlock && positioningInit && multirangerInit) {
-        cout <<"Unlocked!\n";
+        DEBUG_PRINT("Unlocked!\n");
         state = unlocked;
       }
 
@@ -201,45 +192,6 @@ void appMain()
         commanderSetSetpoint(&setpoint, 3);
       }
     }
+    
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
